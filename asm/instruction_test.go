@@ -109,7 +109,7 @@ func TestInstructionsRewriteMapPtr(t *testing.T) {
 		LoadMapPtr(R1, 0),
 		Return(),
 	}
-	insns[0].Reference = "good"
+	insns[0].SetReference("good")
 
 	if err := insns.RewriteMapPtr("good", 1); err != nil {
 		t.Fatal(err)
@@ -234,4 +234,22 @@ func TestInstructionIterator(t *testing.T) {
 			t.Errorf("Expected iter.Offset to be %d, got %d", offsets[i], iter.Offset)
 		}
 	}
+}
+
+func TestInstructionCopyMeta(t *testing.T) {
+	var a Instruction
+	qt.Assert(t, a.Reference(), qt.Equals, "")
+	qt.Assert(t, a.Symbol(), qt.Equals, "")
+
+	b := a
+	a.SetReference("foo")
+	qt.Assert(t, a.Reference(), qt.Equals, "foo")
+	qt.Assert(t, b.Reference(), qt.Equals, "")
+
+	b = a
+	a.SetSymbol("bar")
+	qt.Assert(t, a.Reference(), qt.Equals, "foo")
+	qt.Assert(t, a.Symbol(), qt.Equals, "bar")
+	qt.Assert(t, b.Reference(), qt.Equals, "foo")
+	qt.Assert(t, b.Symbol(), qt.Equals, "")
 }

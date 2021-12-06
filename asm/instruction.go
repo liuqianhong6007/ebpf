@@ -26,18 +26,56 @@ func (rio RawInstructionOffset) Bytes() uint64 {
 
 // Instruction is a single eBPF instruction.
 type Instruction struct {
-	OpCode    OpCode
-	Dst       Register
-	Src       Register
-	Offset    int16
-	Constant  int64
-	Reference string
-	Symbol    string
+	OpCode   OpCode
+	Dst      Register
+	Src      Register
+	Offset   int16
+	Constant int64
+	meta     *instructionMeta
+}
+
+type instructionMeta struct {
+	reference string
+	symbol    string
+}
+
+func (ins *Instruction) copyMeta() *instructionMeta {
+	if ins.meta == nil {
+		ins.meta = &instructionMeta{}
+	} else {
+		cpy := *ins.meta
+		ins.meta = &cpy
+	}
+	return ins.meta
+}
+
+func (ins *Instruction) Reference() string {
+	if ins.meta == nil {
+		return ""
+	}
+	return ins.meta.reference
+}
+
+func (ins *Instruction) SetReference(ref string) {
+	ins.copyMeta().reference = ref
+}
+
+func (ins *Instruction) Symbol() string {
+	if ins.meta == nil {
+		return ""
+	}
+	return ins.meta.symbol
+}
+
+func (ins *Instruction) SetSymbol(sym string) {
+	ins.copyMeta().symbol = sym
 }
 
 // Sym creates a symbol.
+//
+// The original instruction is left unmodified.
 func (ins Instruction) Sym(name string) Instruction {
-	ins.Symbol = name
+	ins.SetSymbol(name)
 	return ins
 }
 
@@ -275,8 +313,8 @@ func (ins Instruction) Format(f fmt.State, c rune) {
 	}
 
 ref:
-	if ins.Reference != "" {
-		fmt.Fprintf(f, " <%s>", ins.Reference)
+	if ref := ins.Reference(); ref != "" {
+		fmt.Fprintf(f, " <%s>", ref)
 	}
 }
 
@@ -312,7 +350,7 @@ func (insns Instructions) RewriteMapPtr(symbol string, fd int) error {
 	found := false
 	for i := range insns {
 		ins := &insns[i]
-		if ins.Reference != symbol {
+		if ins.Reference() != symbol {
 			continue
 		}
 
@@ -336,15 +374,16 @@ func (insns Instructions) SymbolOffsets() (map[string]int, error) {
 	offsets := make(map[string]int)
 
 	for i, ins := range insns {
-		if ins.Symbol == "" {
+		sym := ins.Symbol()
+		if sym == "" {
 			continue
 		}
 
-		if _, ok := offsets[ins.Symbol]; ok {
-			return nil, fmt.Errorf("duplicate symbol %s", ins.Symbol)
+		if _, ok := offsets[sym]; ok {
+			return nil, fmt.Errorf("duplicate symbol %s", sym)
 		}
 
-		offsets[ins.Symbol] = i
+		offsets[sym] = i
 	}
 
 	return offsets, nil
@@ -356,11 +395,12 @@ func (insns Instructions) ReferenceOffsets() map[string][]int {
 	offsets := make(map[string][]int)
 
 	for i, ins := range insns {
-		if ins.Reference == "" {
+		ref := ins.Reference()
+		if ref == "" {
 			continue
 		}
 
-		offsets[ins.Reference] = append(offsets[ins.Reference], i)
+		offsets[ref] = append(offsets[ref], i)
 	}
 
 	return offsets
@@ -411,8 +451,8 @@ func (insns Instructions) Format(f fmt.State, c rune) {
 
 	iter := insns.Iterate()
 	for iter.Next() {
-		if iter.Ins.Symbol != "" {
-			fmt.Fprintf(f, "%s%s:\n", symIndent, iter.Ins.Symbol)
+		if sym := iter.Ins.Symbol(); sym != "" {
+			fmt.Fprintf(f, "%s%s:\n", symIndent, sym)
 		}
 		fmt.Fprintf(f, "%s%*d: %v\n", indent, offsetWidth, iter.Offset, iter.Ins)
 	}

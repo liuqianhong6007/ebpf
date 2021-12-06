@@ -331,7 +331,9 @@ func (ec *elfCode) loadInstructions(section *elfSection) (asm.Instructions, uint
 			return nil, 0, fmt.Errorf("offset %d: %w", offset, err)
 		}
 
-		ins.Symbol = section.symbols[offset].Name
+		if sym, ok := section.symbols[offset]; ok {
+			ins.SetSymbol(sym.Name)
+		}
 
 		if rel, ok := section.relocations[offset]; ok {
 			if err = ec.relocateInstruction(&ins, rel); err != nil {
@@ -494,7 +496,7 @@ func (ec *elfCode) relocateInstruction(ins *asm.Instruction, rel elf.Symbol) err
 		return fmt.Errorf("relocation to %q: %w", target.Name, ErrNotSupported)
 	}
 
-	ins.Reference = name
+	ins.SetReference(name)
 	return nil
 }
 

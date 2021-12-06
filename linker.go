@@ -57,7 +57,8 @@ func needSection(insns, section asm.Instructions) (bool, error) {
 	}
 
 	for _, ins := range insns {
-		if ins.Reference == "" {
+		ref := ins.Reference()
+		if ref == "" {
 			continue
 		}
 
@@ -70,7 +71,7 @@ func needSection(insns, section asm.Instructions) (bool, error) {
 			continue
 		}
 
-		if _, ok := symbols[ins.Reference]; !ok {
+		if _, ok := symbols[ref]; !ok {
 			// Symbol isn't available in this section
 			continue
 		}
@@ -88,30 +89,28 @@ func fixupJumpsAndCalls(insns asm.Instructions) error {
 	symbolOffsets := make(map[string]asm.RawInstructionOffset)
 	iter := insns.Iterate()
 	for iter.Next() {
-		ins := iter.Ins
-
-		if ins.Symbol == "" {
+		sym := iter.Ins.Symbol()
+		if sym == "" {
 			continue
 		}
 
-		if _, ok := symbolOffsets[ins.Symbol]; ok {
-			return fmt.Errorf("duplicate symbol %s", ins.Symbol)
+		if _, ok := symbolOffsets[sym]; ok {
+			return fmt.Errorf("duplicate symbol %s", sym)
 		}
 
-		symbolOffsets[ins.Symbol] = iter.Offset
+		symbolOffsets[sym] = iter.Offset
 	}
 
 	iter = insns.Iterate()
 	for iter.Next() {
-		i := iter.Index
-		offset := iter.Offset
 		ins := iter.Ins
-
-		if ins.Reference == "" {
+		ref := ins.Reference()
+		if ref == "" {
 			continue
 		}
 
-		symOffset, ok := symbolOffsets[ins.Reference]
+		offset := iter.Offset
+		symOffset, ok := symbolOffsets[ref]
 		switch {
 		case ins.IsLoadOfFunctionPointer() && ins.Constant == -1:
 			fallthrough
@@ -133,13 +132,13 @@ func fixupJumpsAndCalls(insns asm.Instructions) error {
 			continue
 
 		case ins.IsLoadFromMap() && ins.MapPtr() == -1:
-			return fmt.Errorf("map %s: %w", ins.Reference, errUnsatisfiedReference)
+			return fmt.Errorf("map %s: %w", ref, errUnsatisfiedReference)
 		default:
 			// no fixup needed
 			continue
 		}
 
-		return fmt.Errorf("%s at %d: reference to missing symbol %q", ins.OpCode, i, ins.Reference)
+		return fmt.Errorf("%s at %d: reference to missing symbol %q", ins.OpCode, iter.Index, ref)
 	}
 
 	// fixupBPFCalls replaces bpf_probe_read_{kernel,user}[_str] with bpf_probe_read[_str] on older kernels

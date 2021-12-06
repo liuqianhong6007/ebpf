@@ -67,11 +67,13 @@ func (op JumpOp) Imm(dst Register, value int32, label string) Instruction {
 	}
 
 	return Instruction{
-		OpCode:    OpCode(JumpClass).SetJumpOp(op).SetSource(ImmSource),
-		Dst:       dst,
-		Offset:    -1,
-		Constant:  int64(value),
-		Reference: label,
+		OpCode:   OpCode(JumpClass).SetJumpOp(op).SetSource(ImmSource),
+		Dst:      dst,
+		Offset:   -1,
+		Constant: int64(value),
+		meta: &instructionMeta{
+			reference: label,
+		},
 	}
 }
 
@@ -82,11 +84,13 @@ func (op JumpOp) Reg(dst, src Register, label string) Instruction {
 	}
 
 	return Instruction{
-		OpCode:    OpCode(JumpClass).SetJumpOp(op).SetSource(RegSource),
-		Dst:       dst,
-		Src:       src,
-		Offset:    -1,
-		Reference: label,
+		OpCode: OpCode(JumpClass).SetJumpOp(op).SetSource(RegSource),
+		Dst:    dst,
+		Src:    src,
+		Offset: -1,
+		meta: &instructionMeta{
+			reference: label,
+		},
 	}
 }
 
@@ -94,16 +98,20 @@ func (op JumpOp) Reg(dst, src Register, label string) Instruction {
 func (op JumpOp) Label(label string) Instruction {
 	if op == Call {
 		return Instruction{
-			OpCode:    OpCode(JumpClass).SetJumpOp(Call),
-			Src:       PseudoCall,
-			Constant:  -1,
-			Reference: label,
+			OpCode:   OpCode(JumpClass).SetJumpOp(Call),
+			Src:      PseudoCall,
+			Constant: -1,
+			meta: &instructionMeta{
+				reference: label,
+			},
 		}
 	}
 
 	return Instruction{
-		OpCode:    OpCode(JumpClass).SetJumpOp(op),
-		Offset:    -1,
-		Reference: label,
+		OpCode: OpCode(JumpClass).SetJumpOp(op),
+		Offset: -1,
+		meta: &instructionMeta{
+			reference: label,
+		},
 	}
 }

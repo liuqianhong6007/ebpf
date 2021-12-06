@@ -37,6 +37,7 @@ type Instruction struct {
 type instructionMeta struct {
 	reference string
 	symbol    string
+	fd        FDer
 }
 
 func (ins *Instruction) copyMeta() *instructionMeta {
@@ -69,6 +70,13 @@ func (ins *Instruction) Symbol() string {
 
 func (ins *Instruction) SetSymbol(sym string) {
 	ins.copyMeta().symbol = sym
+}
+
+func (ins *Instruction) fd() FDer {
+	if ins.meta == nil {
+		return nil
+	}
+	return ins.meta.fd
 }
 
 // Sym creates a symbol.
@@ -116,6 +124,12 @@ func (ins *Instruction) Unmarshal(r io.Reader, bo binary.ByteOrder) (uint64, err
 func (ins Instruction) Marshal(w io.Writer, bo binary.ByteOrder) (uint64, error) {
 	if ins.OpCode == InvalidOpCode {
 		return 0, errors.New("invalid opcode")
+	}
+
+	if fd := ins.fd(); fd != nil {
+		if err := ins.RewriteMapPtr(fd.FD()); err != nil {
+			return 0, err
+		}
 	}
 
 	isDWordLoad := ins.OpCode.IsDWordLoad()
@@ -176,11 +190,32 @@ func (ins *Instruction) RewriteMapPtr(fd int) error {
 	return nil
 }
 
+type FDer interface {
+	FD() int
+}
+
+func (ins *Instruction) RewriteMap(f FDer) error {
+	if !ins.OpCode.IsDWordLoad() {
+		return fmt.Errorf("%s is not a 64 bit load", ins.OpCode)
+	}
+
+	if ins.Src != PseudoMapFD && ins.Src != PseudoMapValue {
+		return errors.New("not a load from a map")
+	}
+
+	meta := ins.copyMeta()
+	meta.fd = f
+	return nil
+}
+
 // MapPtr returns the map fd for this instruction.
 //
 // The result is undefined if the instruction is not a load from a map,
 // see IsLoadFromMap.
 func (ins *Instruction) MapPtr() int {
+	if fd := ins.fd(); fd != nil {
+		return fd.FD()
+	}
 	return int(int32(uint64(ins.Constant) & math.MaxUint32))
 }
 
@@ -355,6 +390,32 @@ func (insns Instructions) RewriteMapPtr(symbol string, fd int) error {
 		}
 
 		if err := ins.RewriteMapPtr(fd); err != nil {
+			return err
+		}
+
+		found = true
+	}
+
+	if !found {
+		return &unreferencedSymbolError{symbol}
+	}
+
+	return nil
+}
+
+func (insns Instructions) RewriteMap(symbol string, fd FDer) error {
+	if symbol == "" {
+		return errors.New("empty symbol")
+	}
+
+	found := false
+	for i := range insns {
+		ins := &insns[i]
+		if ins.Reference() != symbol {
+			continue
+		}
+
+		if err := ins.RewriteMap(fd); err != nil {
 			return err
 		}
 

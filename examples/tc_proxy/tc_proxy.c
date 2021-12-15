@@ -7,6 +7,8 @@
 #include <linux/ip.h>
 #include "bpf_helpers.h"
 
+char __license[] SEC("license") = "Dual MIT/GPL";
+
 struct bpf_map_def SEC("maps") proxy_map = {
 	.type = BPF_MAP_TYPE_ARRAY,
 	.key_size = sizeof(__u32),
@@ -14,44 +16,45 @@ struct bpf_map_def SEC("maps") proxy_map = {
 	.max_entries = 1,
 };
 
-SEC("proxy")
-int _proxy(struct __sk_buff *skb)
+SEC("classifier")
+int cls_main(struct __sk_buff *skb)
 {
-	char msg[] = "enter xxxxxxxxx";
-	bpf_trace_printk(msg, sizeof(msg));
+	bpf_printk("enter cls_main\n");
+	return -1;
+}
+
+
+SEC("tc")
+int tc_proxy_prog(struct __sk_buff *skb)
+{
+	bpf_printk("enter tc_proxy_prog\n");
 
 	void *data = (void *)(long)skb->data;
 	struct ethhdr *eth = data;
 	void *data_end = (void *)(long)skb->data_end;
 
 	if (data + sizeof(*eth) > data_end) {
-		char fmt4[] = "not ethernet package";
-		bpf_trace_printk(fmt4, sizeof(fmt4));
+		bpf_printk("not ethernet package\n");
 		return TC_ACT_OK;
 	}
 
 	if (eth->h_proto != htons(ETH_P_IP)) {
-		char fmt4[] = "not ipv4 package";
-		bpf_trace_printk(fmt4, sizeof(fmt4));
+		bpf_printk("not ipv4 package\n");
 		return TC_ACT_OK;
 	}
 
 	struct iphdr *iph = data + sizeof(*eth);
 	if (data + sizeof(*eth) + sizeof(*iph) > data_end) {
-		char fmt4[] = "not ip package";
-		bpf_trace_printk(fmt4, sizeof(fmt4));
+		bpf_printk("not ip package\n");
 		return TC_ACT_OK;
 	}
 
 	if (iph->protocol != IPPROTO_IPIP) {
-		char fmt4[] = "not ip package";
-		bpf_trace_printk(fmt4, sizeof(fmt4));
+		bpf_printk("not ip package\n");
 		return TC_ACT_OK;
 	}
 	
-	char fmt4[] = "an ip package pass";
-	bpf_trace_printk(fmt4, sizeof(fmt4));
+	bpf_printk("an ip package pass\n");
 	return TC_ACT_OK;
 }
 
-char _license[] SEC("license") = "GPL";

@@ -43,8 +43,15 @@ func main() {
 	}
 	defer l.Close()
 
-	var key uint32 = 0
-	var val uint32 = 888
+	key := BackendServer{
+		Addr: IP2Uint32("172.16.128.2"),
+		Port: 8080,
+	}
+	val := BackendServer{
+		Addr: IP2Uint32("10.41.1.140"),
+		Port: 8080,
+	}
+
 	err = objs.ProxyMap.Put(&key, &val)
 	if err != nil {
 		log.Fatalf("set proxy_map error: %s", err)

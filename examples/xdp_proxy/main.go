@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/rlimit"
 )
 
@@ -32,9 +33,19 @@ func main() {
 	}
 	defer objs.Close()
 
+	l, err := link.AttachXDP(link.XDPOptions{
+		Program:   objs.XdpProg,
+		Interface: 2,
+		Flags:     link.XDPGenericMode,
+	})
+	if err != nil {
+		log.Fatalf("attach xdp error: %s", err)
+	}
+	defer l.Close()
+
 	var key uint32 = 0
 	var val uint32 = 888
-	err := objs.ProxyMap.Put(&key, &val)
+	err = objs.ProxyMap.Put(&key, &val)
 	if err != nil {
 		log.Fatalf("set proxy_map error: %s", err)
 	}

@@ -17,6 +17,7 @@ char __license[] SEC("license") = "GPL";
 struct backend_server{
 	__u32 addr;
 	__u16 port;
+	__u16 padding;
 };
 
 struct bpf_map_def SEC("maps") proxy_map = {
@@ -42,47 +43,47 @@ int xdp_prog(struct xdp_md *ctx)
 		return XDP_PASS;
 
 	h_proto = eth->h_proto;
+	
+	/* Only handle IPV4 packet */	
+	if  (h_proto != htons(ETH_P_IP))
+		return XDP_PASS;
 
 	/* Handle IPV4 packet */
-	if (h_proto == htons(ETH_P_IP)){
-		struct iphdr *iph = data + nh_off;
-		nh_off += sizeof(struct iphdr);
-		if (data + nh_off > data_end)
-			return XDP_PASS;
-		saddr = iph->saddr;
-		daddr = iph->daddr;
+	struct iphdr *iph = data + nh_off;
+	nh_off += sizeof(struct iphdr);
+	if (data + nh_off > data_end)
+		return XDP_PASS;
+	saddr = iph->saddr;
+	daddr = iph->daddr;
 
-		/* Handle UDP packet */
-		if (iph->protocol == IPPROTO_UDP){
-			struct udphdr *udph = data + nh_off;
-			nh_off += sizeof(struct udphdr);
-			if (data + nh_off > data_end)
-				return XDP_PASS;
-			struct backend_server key={};
-			key.addr = iph->daddr;
-			key.port = udph->dest;
-			void *val = bpf_map_lookup_elem(&proxy_map,&key);
-			if (!val){
-				bpf_printk("backend server not found\n");
-				return XDP_PASS;
-			}
+	/* Only Handle UDP packet */	
+	if (iph->protocol != IPPROTO_UDP)
+		return XDP_PASS;
 
-			struct backend_server *b_server = (struct backend_server*)(val);
-			if (b_server->addr == 0 || b_server->port == 0){
-                                bpf_printk("backend server info error\n");
-                                return XDP_PASS;
-                        }
-			
+	/* Handle UDP packet */
+	struct udphdr *udph = data + nh_off;
+	nh_off += sizeof(struct udphdr);
+	if (data + nh_off > data_end)
+		return XDP_PASS;
 
-			bpf_printk("rev an udp packet: saddr=%u, daddr=%u\n",saddr,daddr);
-			return XDP_PASS;
-		}
-
-	}else{
+	/* Match backend server */
+	struct backend_server key={};
+	key.addr = iph->daddr;
+	key.port = udph->dest;
+	void *val = bpf_map_lookup_elem(&proxy_map,&key);
+	if (!val){
+		bpf_printk("backend server not found\n");
 		return XDP_PASS;
 	}
-
+	struct backend_server *b_server = (struct backend_server*)(val);
+	if (b_server->addr == 0 || b_server->port == 0){
+                bpf_printk("backend server info error\n");
+                return XDP_PASS;
+        }
 	
+
+	bpf_printk("rev an udp packet: saddr=%u, daddr=%u\n",saddr,daddr);
 	return XDP_PASS;
+
 }
 

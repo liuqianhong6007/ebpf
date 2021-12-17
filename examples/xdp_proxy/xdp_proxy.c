@@ -72,7 +72,7 @@ int xdp_prog(struct xdp_md *ctx)
 	key.port = udph->dest;
 	void *val = bpf_map_lookup_elem(&proxy_map,&key);
 	if (!val){
-		bpf_printk("backend server not found\n");
+		bpf_printk("backend server not found: addr[%u],port[%u]\n",key.addr,key.port);
 		return XDP_PASS;
 	}
 	struct backend_server *b_server = (struct backend_server*)(val);
@@ -82,7 +82,7 @@ int xdp_prog(struct xdp_md *ctx)
         }
 	
 
-	bpf_printk("rev an udp packet: saddr=%u, daddr=%u\n",saddr,daddr);
+	bpf_printk("pass an udp packet: saddr=%u, daddr=%u\n",saddr,daddr);
 	return XDP_PASS;
 
 }

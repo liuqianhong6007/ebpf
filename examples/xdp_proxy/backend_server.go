@@ -15,7 +15,7 @@ func (bs *BackendServer) MarshalBinary() ([]byte, error) {
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint32(buf, bs.Addr)
 	binary.BigEndian.PutUint16(buf[4:], bs.Port)
-	binary.BigEndian.PutUint16(buf[6:], bs.Port)
+	binary.BigEndian.PutUint16(buf[6:], bs.Padding)
 	return buf, nil
 }
 

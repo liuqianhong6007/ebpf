@@ -79,7 +79,7 @@ int xdp_prog(struct xdp_md *ctx)
 	void *val = bpf_map_lookup_elem(&proxy_map,&key);
 	if (!val){
 		bpf_printk("backend server not found: key=%u\n",key);
-		return XDP_DROP;
+		return XDP_PASS;
 	}
 	struct backend_server *b_server = (struct backend_server*)(val);
 	if (b_server->addr == 0 || b_server->port == 0){

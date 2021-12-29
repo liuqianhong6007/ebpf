@@ -22,7 +22,10 @@ func init() {
 }
 
 func GetLinkIndexByName(ifname string) int {
-	l, _ := netlink.LinkByName(ifname)
+	l, err := netlink.LinkByName(ifname)
+	if err != nil {
+		panic(err)
+	}
 	return l.Attrs().Index
 }
 
@@ -56,7 +59,9 @@ func main() {
 	}
 	defer l.Close()
 
-	var key uint32 = 30001
+	key := BackendServerKey{
+		ServerID: 1,
+	}
 	val := BackendServer{
 		Addr: IP2Uint32("10.41.1.140"),
 		Port: 30001,

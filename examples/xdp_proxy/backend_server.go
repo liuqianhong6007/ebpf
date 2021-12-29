@@ -5,6 +5,21 @@ import (
 	"net"
 )
 
+type BackendServerKey struct {
+	ServerID uint32
+}
+
+func (bsk *BackendServerKey) MarshalBinary() ([]byte, error) {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, bsk.ServerID)
+	return buf, nil
+}
+
+func (bsk *BackendServerKey) UnmarshalBinary(buf []byte) error {
+	bsk.ServerID = binary.BigEndian.Uint32(buf)
+	return nil
+}
+
 type BackendServer struct {
 	Addr    uint32
 	Port    uint16

@@ -14,6 +14,10 @@
 
 char __license[] SEC("license") = "GPL";
 
+struct backend_server_key{
+	__u32 server_id;
+};
+
 struct backend_server{
 	__u32 addr;
 	__u16 port;
@@ -27,8 +31,8 @@ struct bpf_map_def SEC("maps") proxy_map = {
 	.max_entries = 2048,
 };
 
-static __always_inline __u32 get_backend_server_key(__be16 port){
-	return port - 30000 > 0? (__u32) port - 30000: 0;
+static __always_inline backend_server_key get_backend_server_key(__be16 port){
+    return struct backend_server_key{.server_id = port - 30000 > 0? (__u32) port - 30000: 0}
 }
 
 SEC("xdp")
@@ -40,7 +44,7 @@ int xdp_prog(struct xdp_md *ctx)
 	__u64 nh_off;
 	__be32 saddr = 0, daddr = 0;
 	__be16 /*sport = 0,*/ dport = 0;
-	__u32 key;
+	struct backend_server_key key;
 
 	nh_off = sizeof(*eth);
 	if (data + nh_off > data_end)

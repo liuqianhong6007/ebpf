@@ -7,7 +7,7 @@
 #include <linux/ip.h>
 #include <linux/ipv6.h>
 #include <linux/in.h>
-#include <linux/udp.h>
+#include <linux/tcp.h>
 #include "bpf_helpers.h"
 
 #define htons(x) __constant_htons((x))
@@ -22,11 +22,14 @@ struct backend_server{
 
 struct bpf_map_def SEC("maps") proxy_map = {
 	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(struct backend_server),
+	.key_size = sizeof(__u32),
 	.value_size = sizeof(struct backend_server),
 	.max_entries = 2048,
 };
 
+static __always_inline __u32 get_backend_server_key(__be16 port){
+	return port - 30000 > 0? (__u32) port - 30000: 0;
+}
 
 SEC("xdp")
 int xdp_prog(struct xdp_md *ctx)
@@ -34,46 +37,45 @@ int xdp_prog(struct xdp_md *ctx)
 	void *data_end = (void *)(long)ctx->data_end;
 	void *data = (void *)(long)ctx->data;
 	struct ethhdr *eth = data;
-	__be16 h_proto;
 	__u64 nh_off;
-	__be32 saddr = 0,daddr = 0;
+	__be32 saddr = 0, daddr = 0;
+	__be16 /*sport = 0,*/ dport = 0;
+	__u32 key;
 
 	nh_off = sizeof(*eth);
 	if (data + nh_off > data_end)
 		return XDP_PASS;
 
-	h_proto = eth->h_proto;
-	
 	/* Only handle IPV4 packet */	
-	if  (h_proto != htons(ETH_P_IP))
+	if  (eth->h_proto != htons(ETH_P_IP))
 		return XDP_PASS;
 
-	/* Handle IPV4 packet */
 	struct iphdr *iph = data + nh_off;
 	nh_off += sizeof(struct iphdr);
 	if (data + nh_off > data_end)
-		return XDP_PASS;
+		return XDP_DROP;
 	saddr = iph->saddr;
 	daddr = iph->daddr;
 
-	/* Only Handle UDP packet */	
-	if (iph->protocol != IPPROTO_UDP)
+	/* Only Handle TCP packet */	
+	if (iph->protocol != IPPROTO_TCP)
 		return XDP_PASS;
 
-	/* Handle UDP packet */
-	struct udphdr *udph = data + nh_off;
-	nh_off += sizeof(struct udphdr);
+	struct tcphdr *tcph = data + nh_off;
+	nh_off += sizeof(struct tcphdr);
 	if (data + nh_off > data_end)
-		return XDP_PASS;
+		return XDP_DROP;
+
+	//sport = tcph->source;
+	dport = tcph->dest;
+
 
 	/* Match backend server */
-	struct backend_server key={};
-	key.addr = iph->daddr;
-	key.port = udph->dest;
+	key = get_backend_server_key(dport);
 	void *val = bpf_map_lookup_elem(&proxy_map,&key);
 	if (!val){
-		bpf_printk("backend server not found: addr[%u],port[%u]\n",key.addr,key.port);
-		return XDP_PASS;
+		bpf_printk("backend server not found: key=%u\n",key);
+		return XDP_DROP;
 	}
 	struct backend_server *b_server = (struct backend_server*)(val);
 	if (b_server->addr == 0 || b_server->port == 0){
@@ -82,7 +84,7 @@ int xdp_prog(struct xdp_md *ctx)
         }
 	
 
-	bpf_printk("pass an udp packet: saddr=%u, daddr=%u\n",saddr,daddr);
+	bpf_printk("pass an tcp packet: saddr=%u, daddr=%u\n",saddr,daddr);
 	return XDP_PASS;
 
 }

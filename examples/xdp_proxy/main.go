@@ -4,25 +4,26 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
-	"flag"
 
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/vishvananda/netlink"
 )
 
-var ifIndex int
+var ifname string
 
-func init(){
-	flag.Int("if")
+func init() {
+	flag.StringVar(&ifname, "ifname", "eth1", "interface name")
 }
 
-func GetLinkIndexByName(name string) int {
-	link,err:=netlink.LinkByName(name)
+func GetLinkIndexByName(ifname string) int {
+	l, _ := netlink.LinkByName(ifname)
+	return l.Attrs().Index
 }
 
 // $BPF_CLANG and $BPF_CFLAGS are set by the Makefile.
@@ -47,7 +48,7 @@ func main() {
 
 	l, err := link.AttachXDP(link.XDPOptions{
 		Program:   objs.XdpProg,
-		Interface: 2,
+		Interface: GetLinkIndexByName(ifname),
 		Flags:     link.XDPGenericMode,
 	})
 	if err != nil {
@@ -71,4 +72,3 @@ func main() {
 
 	<-stopper
 }
-

@@ -33,6 +33,8 @@ func GetLinkIndexByName(ifname string) int {
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cc $BPF_CLANG -cflags $BPF_CFLAGS bpf xdp_proxy.c -- -I../headers -I/usr/include/x86_64-linux-gnu
 
 func main() {
+	flag.Parse()
+
 	// Subscribe to signals for terminating the program.
 	stopper := make(chan os.Signal, 1)
 	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)

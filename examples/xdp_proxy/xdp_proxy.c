@@ -31,8 +31,10 @@ struct bpf_map_def SEC("maps") proxy_map = {
 	.max_entries = 2048,
 };
 
-static __always_inline backend_server_key get_backend_server_key(__be16 port){
-    return struct backend_server_key{.server_id = port - 30000 > 0? (__u32) port - 30000: 0}
+static __always_inline struct backend_server_key get_backend_server_key(__be16 port){
+    struct backend_server_key ret;
+    ret.server_id = port - 30000 > 0? (__u32) port - 30000: 0;
+    return ret;
 }
 
 SEC("xdp")
@@ -78,7 +80,7 @@ int xdp_prog(struct xdp_md *ctx)
 	key = get_backend_server_key(dport);
 	void *val = bpf_map_lookup_elem(&proxy_map,&key);
 	if (!val){
-		bpf_printk("backend server not found: key=%u\n",key);
+		bpf_printk("backend server not found: server_id=%u\n",key.server_id);
 		return XDP_PASS;
 	}
 	struct backend_server *b_server = (struct backend_server*)(val);
